@@ -1,7 +1,5 @@
 package com.geiq.plugin;
 
-import com.google.gson.Gson;
-
 public class TradePayload
 {
 	private final int itemId;
@@ -27,11 +25,6 @@ public class TradePayload
 		this.status = status;
 		this.slot = slot;
 		this.timestamp = timestamp;
-	}
-
-	public String toJson()
-	{
-		return new Gson().toJson(this);
 	}
 
 	public int getItemId()

@@ -20,10 +20,10 @@ public class ApiClient
 	private final Gson gson;
 
 	@Inject
-	public ApiClient(OkHttpClient httpClient)
+	public ApiClient(OkHttpClient httpClient, Gson gson)
 	{
 		this.httpClient = httpClient;
-		this.gson = new Gson();
+		this.gson = gson;
 	}
 
 	public void sendTrades(String apiUrl, String syncCode, List<TradePayload> trades) throws IOException
