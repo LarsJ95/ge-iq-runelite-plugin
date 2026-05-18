@@ -25,7 +25,13 @@ class GeIqPluginPanel extends PluginPanel
 	private final JLabel totalSyncedValue = new JLabel("0 trades");
 	private final JLabel lastSyncValue = new JLabel("Never");
 
+	private final JLabel watchingValue = new JLabel("—");
+	private final JLabel activeFlipsValue = new JLabel("—");
+	private final JLabel investmentsValue = new JLabel("—");
+	private final JLabel pulledAtValue = new JLabel("Never");
+
 	private long lastSyncMs = 0;
+	private long lastPullMs = 0;
 
 	GeIqPluginPanel()
 	{
@@ -53,6 +59,17 @@ class GeIqPluginPanel extends PluginPanel
 		content.add(buildRow("Total synced", totalSyncedValue));
 		content.add(Box.createVerticalStrut(10));
 		content.add(buildRow("Last sync", lastSyncValue));
+		content.add(Box.createVerticalStrut(16));
+
+		content.add(buildSectionHeader("From GE IQ"));
+		content.add(Box.createVerticalStrut(8));
+		content.add(buildRow("Watching", watchingValue));
+		content.add(Box.createVerticalStrut(10));
+		content.add(buildRow("Active flips", activeFlipsValue));
+		content.add(Box.createVerticalStrut(10));
+		content.add(buildRow("Investments", investmentsValue));
+		content.add(Box.createVerticalStrut(10));
+		content.add(buildRow("Pulled", pulledAtValue));
 		content.add(Box.createVerticalStrut(18));
 
 		JButton openButton = new JButton("Open GE IQ");
@@ -64,8 +81,26 @@ class GeIqPluginPanel extends PluginPanel
 
 		add(content, BorderLayout.NORTH);
 
-		Timer refreshTimer = new Timer(15000, e -> updateLastSyncDisplay());
+		Timer refreshTimer = new Timer(15000, e -> {
+			updateLastSyncDisplay();
+			updatePulledAtDisplay();
+		});
 		refreshTimer.start();
+	}
+
+	private JPanel buildSectionHeader(String label)
+	{
+		JPanel header = new JPanel();
+		header.setLayout(new BoxLayout(header, BoxLayout.Y_AXIS));
+		header.setBackground(ColorScheme.DARK_GRAY_COLOR);
+		header.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+		JLabel l = new JLabel(label);
+		l.setFont(FontManager.getRunescapeSmallFont());
+		l.setForeground(ColorScheme.BRAND_ORANGE);
+		l.setAlignmentX(Component.LEFT_ALIGNMENT);
+		header.add(l);
+		return header;
 	}
 
 	private JPanel buildRow(String label, JLabel valueLabel)
@@ -89,9 +124,10 @@ class GeIqPluginPanel extends PluginPanel
 		return row;
 	}
 
-	void update(String syncCode, boolean enabled, int totalSynced, long lastSync)
+	void update(String syncCode, boolean enabled, int totalSynced, long lastSync, SyncState state, long pulledAt)
 	{
 		this.lastSyncMs = lastSync;
+		this.lastPullMs = pulledAt;
 		SwingUtilities.invokeLater(() -> {
 			String code = syncCode == null ? "" : syncCode.trim().toUpperCase();
 			boolean configured = code.length() == 6;
@@ -114,36 +150,48 @@ class GeIqPluginPanel extends PluginPanel
 
 			syncCodeValue.setText(configured ? code : "-");
 			totalSyncedValue.setText(totalSynced + (totalSynced == 1 ? " trade" : " trades"));
+
+			if (state == null)
+			{
+				watchingValue.setText("—");
+				activeFlipsValue.setText("—");
+				investmentsValue.setText("—");
+			}
+			else
+			{
+				int watching = state.favoritesOrEmpty().size();
+				long activeFlips = state.portfolioOrEmpty().stream()
+					.filter(SyncState.PortfolioItem::isActive)
+					.count();
+				long investments = state.investmentsOrEmpty().stream()
+					.filter(SyncState.Investment::isActive)
+					.count();
+				watchingValue.setText(watching + (watching == 1 ? " item" : " items"));
+				activeFlipsValue.setText(String.valueOf(activeFlips));
+				investmentsValue.setText(String.valueOf(investments));
+			}
+
 			updateLastSyncDisplay();
+			updatePulledAtDisplay();
 		});
+	}
+
+	private void updatePulledAtDisplay()
+	{
+		pulledAtValue.setText(lastPullMs <= 0 ? "Never" : agoString(System.currentTimeMillis() - lastPullMs));
 	}
 
 	private void updateLastSyncDisplay()
 	{
-		if (lastSyncMs <= 0)
-		{
-			lastSyncValue.setText("Never");
-			return;
-		}
-		long diff = System.currentTimeMillis() - lastSyncMs;
-		long sec = diff / 1000;
-		String text;
-		if (sec < 60)
-		{
-			text = sec + "s ago";
-		}
-		else if (sec < 3600)
-		{
-			text = (sec / 60) + "m ago";
-		}
-		else if (sec < 86400)
-		{
-			text = (sec / 3600) + "h ago";
-		}
-		else
-		{
-			text = (sec / 86400) + "d ago";
-		}
-		lastSyncValue.setText(text);
+		lastSyncValue.setText(lastSyncMs <= 0 ? "Never" : agoString(System.currentTimeMillis() - lastSyncMs));
+	}
+
+	private static String agoString(long diffMs)
+	{
+		long sec = diffMs / 1000;
+		if (sec < 60) return sec + "s ago";
+		if (sec < 3600) return (sec / 60) + "m ago";
+		if (sec < 86400) return (sec / 3600) + "h ago";
+		return (sec / 86400) + "d ago";
 	}
 }

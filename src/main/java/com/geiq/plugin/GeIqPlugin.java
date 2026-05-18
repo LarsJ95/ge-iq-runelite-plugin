@@ -53,6 +53,8 @@ public class GeIqPlugin extends Plugin
 	private ScheduledExecutorService executor;
 	private NavigationButton navButton;
 	private GeIqPluginPanel panel;
+	private volatile SyncState syncState;
+	private volatile long lastPullMs;
 
 	@Override
 	protected void startUp()
@@ -71,6 +73,7 @@ public class GeIqPlugin extends Plugin
 
 		executor = Executors.newSingleThreadScheduledExecutor();
 		executor.scheduleAtFixedRate(this::flushTrades, 5, 5, TimeUnit.SECONDS);
+		executor.scheduleAtFixedRate(this::pollSyncState, 10, 60, TimeUnit.SECONDS);
 		log.info("GE IQ Sync started");
 	}
 
@@ -231,7 +234,31 @@ public class GeIqPlugin extends Plugin
 		}
 		int total = readInt(KEY_TOTAL_SYNCED, 0);
 		long lastSync = readLong(KEY_LAST_SYNC_MS, 0L);
-		panel.update(config.syncCode(), config.syncEnabled(), total, lastSync);
+		panel.update(config.syncCode(), config.syncEnabled(), total, lastSync, syncState, lastPullMs);
+	}
+
+	private void pollSyncState()
+	{
+		if (!config.syncEnabled())
+		{
+			return;
+		}
+		String syncCode = config.syncCode().trim().toUpperCase();
+		if (syncCode.length() != 6)
+		{
+			return;
+		}
+		try
+		{
+			SyncState state = apiClient.fetchSyncState(config.apiUrl(), syncCode);
+			syncState = state;
+			lastPullMs = System.currentTimeMillis();
+			refreshPanel();
+		}
+		catch (Exception e)
+		{
+			log.debug("GE IQ: failed to pull sync state", e);
+		}
 	}
 
 	private int readInt(String key, int fallback)
