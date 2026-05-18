@@ -52,10 +52,10 @@ public class ApiClient
 	}
 
 	/**
-	 * GET /api/sync-pull?code={syncCode}. Returns null when the server has no synced
+	 * GET /api/sync-push?code={syncCode}. Returns null when the server has no synced
 	 * data for this code (HTTP 404); throws on transport errors or other failures.
-	 * Derives the sync-pull URL from the trade URL by replacing the trailing path
-	 * segment so /api/trade → /api/sync-pull.
+	 * Derives the URL from the trade URL by replacing the trailing path segment so
+	 * /api/trade → /api/sync-push.
 	 */
 	public SyncState fetchSyncState(String apiUrl, String syncCode) throws IOException
 	{
@@ -75,20 +75,20 @@ public class ApiClient
 			}
 			if (!response.isSuccessful())
 			{
-				throw new IOException("GE IQ sync-pull returned " + response.code());
+				throw new IOException("GE IQ sync state fetch returned " + response.code());
 			}
 			ResponseBody body = response.body();
 			if (body == null)
 			{
-				throw new IOException("GE IQ sync-pull returned empty body");
+				throw new IOException("GE IQ sync state fetch returned empty body");
 			}
 			return gson.fromJson(body.charStream(), SyncState.class);
 		}
 	}
 
 	/**
-	 * Replace the last path segment of the trade URL with "sync-pull".
-	 * Example: https://ge-iq.com/api/trade → https://ge-iq.com/api/sync-pull
+	 * Replace the last path segment of the trade URL with "sync-push".
+	 * Example: https://ge-iq.com/api/trade → https://ge-iq.com/api/sync-push
 	 */
 	static String derivePullUrl(String apiUrl)
 	{
@@ -103,8 +103,8 @@ public class ApiClient
 		// Don't slice off the scheme's "//"
 		if (lastSlash > "https://".length())
 		{
-			return base.substring(0, lastSlash) + "/sync-pull";
+			return base.substring(0, lastSlash) + "/sync-push";
 		}
-		return base + "/sync-pull";
+		return base + "/sync-push";
 	}
 }
