@@ -10,7 +10,7 @@ public interface GeIqConfig extends Config
 	@ConfigItem(
 		keyName = "syncCode",
 		name = "Sync Code",
-		description = "Your 6-character GE IQ sync code. Find it in the Sync menu on ge-iq.vercel.app",
+		description = "Your 6-character GE IQ sync code. Find it in the Sync menu on ge-iq.com",
 		position = 1
 	)
 	default String syncCode()
@@ -37,6 +37,6 @@ public interface GeIqConfig extends Config
 	)
 	default String apiUrl()
 	{
-		return "https://ge-iq.vercel.app/api/trade";
+		return "https://ge-iq.com/api/trade";
 	}
 }

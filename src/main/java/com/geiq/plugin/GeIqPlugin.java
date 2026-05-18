@@ -1,6 +1,7 @@
 package com.geiq.plugin;
 
 import com.google.inject.Provides;
+import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Executors;
@@ -11,11 +12,15 @@ import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
 import net.runelite.api.GrandExchangeOffer;
 import net.runelite.api.GrandExchangeOfferState;
+import net.runelite.api.events.GrandExchangeOfferChanged;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
-import net.runelite.api.events.GrandExchangeOfferChanged;
+import net.runelite.client.events.ConfigChanged;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
+import net.runelite.client.ui.ClientToolbar;
+import net.runelite.client.ui.NavigationButton;
+import net.runelite.client.util.ImageUtil;
 
 @PluginDescriptor(
 	name = "GE IQ Sync",
@@ -25,6 +30,10 @@ import net.runelite.client.plugins.PluginDescriptor;
 @Slf4j
 public class GeIqPlugin extends Plugin
 {
+	private static final String CONFIG_GROUP = "geiq";
+	private static final String KEY_TOTAL_SYNCED = "totalSynced";
+	private static final String KEY_LAST_SYNC_MS = "lastSyncMs";
+
 	@Inject
 	private Client client;
 
@@ -34,12 +43,32 @@ public class GeIqPlugin extends Plugin
 	@Inject
 	private ApiClient apiClient;
 
+	@Inject
+	private ConfigManager configManager;
+
+	@Inject
+	private ClientToolbar clientToolbar;
+
 	private final List<TradePayload> pendingTrades = new ArrayList<>();
 	private ScheduledExecutorService executor;
+	private NavigationButton navButton;
+	private GeIqPluginPanel panel;
 
 	@Override
 	protected void startUp()
 	{
+		panel = new GeIqPluginPanel();
+		refreshPanel();
+
+		final BufferedImage icon = ImageUtil.loadImageResource(getClass(), "icon.png");
+		navButton = NavigationButton.builder()
+			.tooltip("GE IQ Sync")
+			.icon(icon)
+			.priority(7)
+			.panel(panel)
+			.build();
+		clientToolbar.addNavigation(navButton);
+
 		executor = Executors.newSingleThreadScheduledExecutor();
 		executor.scheduleAtFixedRate(this::flushTrades, 5, 5, TimeUnit.SECONDS);
 		log.info("GE IQ Sync started");
@@ -53,7 +82,22 @@ public class GeIqPlugin extends Plugin
 		{
 			executor.shutdown();
 		}
+		if (navButton != null)
+		{
+			clientToolbar.removeNavigation(navButton);
+			navButton = null;
+		}
+		panel = null;
 		log.info("GE IQ Sync stopped");
+	}
+
+	@Subscribe
+	public void onConfigChanged(ConfigChanged event)
+	{
+		if (CONFIG_GROUP.equals(event.getGroup()))
+		{
+			refreshPanel();
+		}
 	}
 
 	@Subscribe
@@ -158,6 +202,11 @@ public class GeIqPlugin extends Plugin
 		try
 		{
 			apiClient.sendTrades(config.apiUrl(), syncCode, toSend);
+			int prevTotal = readInt(KEY_TOTAL_SYNCED, 0);
+			long now = System.currentTimeMillis();
+			configManager.setConfiguration(CONFIG_GROUP, KEY_TOTAL_SYNCED, prevTotal + toSend.size());
+			configManager.setConfiguration(CONFIG_GROUP, KEY_LAST_SYNC_MS, now);
+			refreshPanel();
 			log.info("GE IQ: synced {} trades", toSend.size());
 		}
 		catch (Exception e)
@@ -172,6 +221,29 @@ public class GeIqPlugin extends Plugin
 				}
 			}
 		}
+	}
+
+	private void refreshPanel()
+	{
+		if (panel == null)
+		{
+			return;
+		}
+		int total = readInt(KEY_TOTAL_SYNCED, 0);
+		long lastSync = readLong(KEY_LAST_SYNC_MS, 0L);
+		panel.update(config.syncCode(), config.syncEnabled(), total, lastSync);
+	}
+
+	private int readInt(String key, int fallback)
+	{
+		Integer v = configManager.getConfiguration(CONFIG_GROUP, key, Integer.class);
+		return v == null ? fallback : v;
+	}
+
+	private long readLong(String key, long fallback)
+	{
+		Long v = configManager.getConfiguration(CONFIG_GROUP, key, Long.class);
+		return v == null ? fallback : v;
 	}
 
 	@Provides
